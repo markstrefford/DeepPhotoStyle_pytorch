@@ -140,9 +140,9 @@ class TrainDataset(torchdata.Dataset):
                                            segm_rounded.shape[1] // self.segm_downsampling_rate), \
                             resample=Image.BILINEAR)
              # image to float
-            img = img.astype(np.float32)[:, :, ::-1] # RGB to BGR!!!
-            img = img.transpose((2, 0, 1))
-            img = self.img_transform(torch.from_numpy(img.copy()))
+            # img = img.astype(np.float32)[:, :, ::-1] # RGB to BGR!!!
+            # img = img.transpose((2, 0, 1))
+            img = self.img_transform(img.copy).unsqueeze(0)
 
             batch_images[i][:, :img.size[1], :img.size[2]] = img
             batch_segms[i][:segm.size[0], :segm.size[1]] = torch.from_numpy(segm.astype(np.int)).long()
@@ -207,11 +207,12 @@ class ValDataset(torchdata.Dataset):
             target_width = round2nearest_multiple(target_width, self.padding_constant)
 
             # resize
-            img_resized = cv2.resize(img.copy(), (target_width, target_height))
+            # img_resized = cv2.resize(img.copy(), (target_width, target_height))
+            img_resized = img.resize((target_width, target_height))
 
             # image to float
-            img_resized = img_resized.astype(np.float32)
-            img_resized = img_resized.transpose((2, 0, 1))
+            # img_resized = img_resized.astype(np.float32)
+            # img_resized = img_resized.transpose((2, 0, 1))
             img_resized = self.img_transform(torch.from_numpy(img_resized))
 
             img_resized = torch.unsqueeze(img_resized, 0)
@@ -244,7 +245,8 @@ class TestDataset(torchdata.Dataset):
 
         # mean and std
         self.img_transform = transforms.Compose([
-            transforms.Normalize(mean=[102.9801, 115.9465, 122.7717], std=[1., 1., 1.])
+            transforms.Normalize(mean=[102.9801, 115.9465, 122.7717], std=[1., 1., 1.]),
+            transforms.ToTensor()
             ])
 
         if isinstance(odgt, list):
@@ -284,11 +286,11 @@ class TestDataset(torchdata.Dataset):
             img_resized = img.resize((target_width, target_height))
 
             # image to float
-            img_resized = img_resized.astype(np.float32)
-            img_resized = img_resized.transpose((2, 0, 1))
-            img_resized = self.img_transform(torch.from_numpy(img_resized))
+            # img_resized = img_resized.astype(np.float32)
+            # img_resized = img_resized.transpose((2, 0, 1))
+            img_resized = self.img_transform(img_resized).unsqueeze(0)
 
-            img_resized = torch.unsqueeze(img_resized, 0)
+            # img_resized = torch.unsqueeze(img_resized, 0)
             img_resized_list.append(img_resized)
 
         # segm = torch.from_numpy(segm.astype(np.int)).long()
