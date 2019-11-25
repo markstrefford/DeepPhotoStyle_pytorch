@@ -117,8 +117,8 @@ class TrainDataset(torchdata.Dataset):
 
             assert(img.ndim == 3)
             assert(segm.ndim == 2)
-            assert(img.shape[0] == segm.shape[0])
-            assert(img.shape[1] == segm.shape[1])
+            assert(img.size[0] == segm.size[0])
+            assert(img.size[1] == segm.size[1])
 
             if self.random_flip == True:
                 random_flip = np.random.choice([0, 1])
@@ -131,10 +131,10 @@ class TrainDataset(torchdata.Dataset):
             segm = segm.resize((batch_resized_size[i, 0], batch_resized_size[i, 1]), resample=Image.BILINEAR)
 
             # to avoid seg label misalignment
-            segm_rounded_height = round2nearest_multiple(segm.shape[0], self.segm_downsampling_rate)
-            segm_rounded_width = round2nearest_multiple(segm.shape[1], self.segm_downsampling_rate)
+            segm_rounded_height = round2nearest_multiple(segm.size[0], self.segm_downsampling_rate)
+            segm_rounded_width = round2nearest_multiple(segm.size[1], self.segm_downsampling_rate)
             segm_rounded = np.zeros((segm_rounded_height, segm_rounded_width), dtype='uint8')
-            segm_rounded[:segm.shape[0], :segm.shape[1]] = segm
+            segm_rounded[:segm.size[0], :segm.size[1]] = segm
 
             segm = segm_rounded.resize((segm_rounded.shape[0] // self.segm_downsampling_rate, \
                                            segm_rounded.shape[1] // self.segm_downsampling_rate), \
@@ -144,8 +144,8 @@ class TrainDataset(torchdata.Dataset):
             img = img.transpose((2, 0, 1))
             img = self.img_transform(torch.from_numpy(img.copy()))
 
-            batch_images[i][:, :img.shape[1], :img.shape[2]] = img
-            batch_segms[i][:segm.shape[0], :segm.shape[1]] = torch.from_numpy(segm.astype(np.int)).long()
+            batch_images[i][:, :img.size[1], :img.size[2]] = img
+            batch_segms[i][:segm.size[0], :segm.size[1]] = torch.from_numpy(segm.astype(np.int)).long()
 
         batch_segms = batch_segms - 1 # label from -1 to 149
         output = dict()
@@ -192,7 +192,8 @@ class ValDataset(torchdata.Dataset):
         # img = img[:, :, ::-1] # BGR to RGB!!!
         segm = Image.open(segm_path)
 
-        ori_height, ori_width, _ = img.shape
+        # ori_height, ori_width, _ = img.shape
+        ori_width, ori_height = img.size
 
         img_resized_list = []
         for this_short_size in self.imgSize:
@@ -264,7 +265,8 @@ class TestDataset(torchdata.Dataset):
         img = Image.open(image_path).convert('RGB')
         # img = img[:, :, ::-1] # BGR to RGB!!!
 
-        ori_height, ori_width, _ = img.shape
+        # ori_height, ori_width, _ = img.shape
+        ori_width, ori_height = img.size
 
         img_resized_list = []
         for this_short_size in self.imgSize:
