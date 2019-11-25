@@ -4,7 +4,8 @@ import torch
 import lib.utils.data as torchdata
 import cv2
 from torchvision import transforms
-from scipy.misc import imread, imresize
+# from scipy.misc import imread, imresize
+from PIL import Image
 import numpy as np
 
 # Round x to the nearest multiple of p and x' >= x
@@ -111,8 +112,8 @@ class TrainDataset(torchdata.Dataset):
             # load image and label
             image_path = os.path.join(self.root_dataset, this_record['fpath_img'])
             segm_path = os.path.join(self.root_dataset, this_record['fpath_segm'])
-            img = imread(image_path, mode='RGB')
-            segm = imread(segm_path)
+            img = Image.open(image_path).convert('RGB')
+            segm = Image.open(segm_path)
 
             assert(img.ndim == 3)
             assert(segm.ndim == 2)
@@ -126,8 +127,8 @@ class TrainDataset(torchdata.Dataset):
                     segm = cv2.flip(segm, 1)
 
             # note that each sample within a mini batch has different scale param
-            img = imresize(img, (batch_resized_size[i, 0], batch_resized_size[i, 1]), interp='bilinear')
-            segm = imresize(segm, (batch_resized_size[i, 0], batch_resized_size[i, 1]), interp='nearest')
+            img = img.resize((batch_resized_size[i, 0], batch_resized_size[i, 1]), resample=Image.BILINEAR)
+            segm = segm.resize((batch_resized_size[i, 0], batch_resized_size[i, 1]), resample=Image.BILINEAR)
 
             # to avoid seg label misalignment
             segm_rounded_height = round2nearest_multiple(segm.shape[0], self.segm_downsampling_rate)
@@ -135,9 +136,9 @@ class TrainDataset(torchdata.Dataset):
             segm_rounded = np.zeros((segm_rounded_height, segm_rounded_width), dtype='uint8')
             segm_rounded[:segm.shape[0], :segm.shape[1]] = segm
 
-            segm = imresize(segm_rounded, (segm_rounded.shape[0] // self.segm_downsampling_rate, \
+            segm = segm_rounded.resize((segm_rounded.shape[0] // self.segm_downsampling_rate, \
                                            segm_rounded.shape[1] // self.segm_downsampling_rate), \
-                            interp='nearest')
+                            resample=Image.BILINEAR)
              # image to float
             img = img.astype(np.float32)[:, :, ::-1] # RGB to BGR!!!
             img = img.transpose((2, 0, 1))
@@ -187,9 +188,9 @@ class ValDataset(torchdata.Dataset):
         # load image and label
         image_path = os.path.join(self.root_dataset, this_record['fpath_img'])
         segm_path = os.path.join(self.root_dataset, this_record['fpath_segm'])
-        img = imread(image_path, mode='RGB')
-        img = img[:, :, ::-1] # BGR to RGB!!!
-        segm = imread(segm_path)
+        img = Image.open(image_path).convert('RGB')
+        # img = img[:, :, ::-1] # BGR to RGB!!!
+        segm = Image.open(segm_path)
 
         ori_height, ori_width, _ = img.shape
 
@@ -260,8 +261,8 @@ class TestDataset(torchdata.Dataset):
         this_record = self.list_sample[index]
         # load image and label
         image_path = this_record['fpath_img']
-        img = imread(image_path, mode='RGB')
-        img = img[:, :, ::-1] # BGR to RGB!!!
+        img = Image.open(image_path).convert('RGB')
+        # img = img[:, :, ::-1] # BGR to RGB!!!
 
         ori_height, ori_width, _ = img.shape
 
@@ -277,7 +278,8 @@ class TestDataset(torchdata.Dataset):
             target_width = round2nearest_multiple(target_width, self.padding_constant)
 
             # resize
-            img_resized = cv2.resize(img.copy(), (target_width, target_height))
+            # img_resized = cv2.resize(img.copy(), (target_width, target_height))
+            img_resized = img.resize((target_width, target_height))
 
             # image to float
             img_resized = img_resized.astype(np.float32)
