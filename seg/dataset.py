@@ -4,7 +4,8 @@ import torch
 import lib.utils.data as torchdata
 import cv2
 from torchvision import transforms
-from scipy.misc import imread, imresize
+# from scipy.misc import imread, imresize
+from PIL import Image
 import numpy as np
 
 # Round x to the nearest multiple of p and x' >= x
@@ -111,13 +112,13 @@ class TrainDataset(torchdata.Dataset):
             # load image and label
             image_path = os.path.join(self.root_dataset, this_record['fpath_img'])
             segm_path = os.path.join(self.root_dataset, this_record['fpath_segm'])
-            img = imread(image_path, mode='RGB')
-            segm = imread(segm_path)
+            img = Image.open(image_path).convert('RGB')
+            segm = Image.open(segm_path)
 
             assert(img.ndim == 3)
             assert(segm.ndim == 2)
-            assert(img.shape[0] == segm.shape[0])
-            assert(img.shape[1] == segm.shape[1])
+            assert(img.size[0] == segm.size[0])
+            assert(img.size[1] == segm.size[1])
 
             if self.random_flip == True:
                 random_flip = np.random.choice([0, 1])
@@ -126,25 +127,25 @@ class TrainDataset(torchdata.Dataset):
                     segm = cv2.flip(segm, 1)
 
             # note that each sample within a mini batch has different scale param
-            img = imresize(img, (batch_resized_size[i, 0], batch_resized_size[i, 1]), interp='bilinear')
-            segm = imresize(segm, (batch_resized_size[i, 0], batch_resized_size[i, 1]), interp='nearest')
+            img = img.resize((batch_resized_size[i, 0], batch_resized_size[i, 1]), resample=Image.BILINEAR)
+            segm = segm.resize((batch_resized_size[i, 0], batch_resized_size[i, 1]), resample=Image.BILINEAR)
 
             # to avoid seg label misalignment
-            segm_rounded_height = round2nearest_multiple(segm.shape[0], self.segm_downsampling_rate)
-            segm_rounded_width = round2nearest_multiple(segm.shape[1], self.segm_downsampling_rate)
+            segm_rounded_height = round2nearest_multiple(segm.size[0], self.segm_downsampling_rate)
+            segm_rounded_width = round2nearest_multiple(segm.size[1], self.segm_downsampling_rate)
             segm_rounded = np.zeros((segm_rounded_height, segm_rounded_width), dtype='uint8')
-            segm_rounded[:segm.shape[0], :segm.shape[1]] = segm
+            segm_rounded[:segm.size[0], :segm.size[1]] = segm
 
-            segm = imresize(segm_rounded, (segm_rounded.shape[0] // self.segm_downsampling_rate, \
+            segm = segm_rounded.resize((segm_rounded.shape[0] // self.segm_downsampling_rate, \
                                            segm_rounded.shape[1] // self.segm_downsampling_rate), \
-                            interp='nearest')
+                            resample=Image.BILINEAR)
              # image to float
-            img = img.astype(np.float32)[:, :, ::-1] # RGB to BGR!!!
-            img = img.transpose((2, 0, 1))
-            img = self.img_transform(torch.from_numpy(img.copy()))
+            # img = img.astype(np.float32)[:, :, ::-1] # RGB to BGR!!!
+            # img = img.transpose((2, 0, 1))
+            img = self.img_transform(img.copy).unsqueeze(0)
 
-            batch_images[i][:, :img.shape[1], :img.shape[2]] = img
-            batch_segms[i][:segm.shape[0], :segm.shape[1]] = torch.from_numpy(segm.astype(np.int)).long()
+            batch_images[i][:, :img.size[1], :img.size[2]] = img
+            batch_segms[i][:segm.size[0], :segm.size[1]] = torch.from_numpy(segm.astype(np.int)).long()
 
         batch_segms = batch_segms - 1 # label from -1 to 149
         output = dict()
@@ -187,11 +188,12 @@ class ValDataset(torchdata.Dataset):
         # load image and label
         image_path = os.path.join(self.root_dataset, this_record['fpath_img'])
         segm_path = os.path.join(self.root_dataset, this_record['fpath_segm'])
-        img = imread(image_path, mode='RGB')
-        img = img[:, :, ::-1] # BGR to RGB!!!
-        segm = imread(segm_path)
+        img = Image.open(image_path).convert('RGB')
+        # img = img[:, :, ::-1] # BGR to RGB!!!
+        segm = Image.open(segm_path)
 
-        ori_height, ori_width, _ = img.shape
+        # ori_height, ori_width, _ = img.shape
+        ori_width, ori_height = img.size
 
         img_resized_list = []
         for this_short_size in self.imgSize:
@@ -205,11 +207,12 @@ class ValDataset(torchdata.Dataset):
             target_width = round2nearest_multiple(target_width, self.padding_constant)
 
             # resize
-            img_resized = cv2.resize(img.copy(), (target_width, target_height))
+            # img_resized = cv2.resize(img.copy(), (target_width, target_height))
+            img_resized = img.resize((target_width, target_height))
 
             # image to float
-            img_resized = img_resized.astype(np.float32)
-            img_resized = img_resized.transpose((2, 0, 1))
+            # img_resized = img_resized.astype(np.float32)
+            # img_resized = img_resized.transpose((2, 0, 1))
             img_resized = self.img_transform(torch.from_numpy(img_resized))
 
             img_resized = torch.unsqueeze(img_resized, 0)
@@ -242,7 +245,8 @@ class TestDataset(torchdata.Dataset):
 
         # mean and std
         self.img_transform = transforms.Compose([
-            transforms.Normalize(mean=[102.9801, 115.9465, 122.7717], std=[1., 1., 1.])
+            transforms.Normalize(mean=[102.9801, 115.9465, 122.7717], std=[1., 1., 1.]),
+            transforms.ToTensor()
             ])
 
         if isinstance(odgt, list):
@@ -260,10 +264,11 @@ class TestDataset(torchdata.Dataset):
         this_record = self.list_sample[index]
         # load image and label
         image_path = this_record['fpath_img']
-        img = imread(image_path, mode='RGB')
-        img = img[:, :, ::-1] # BGR to RGB!!!
+        img = Image.open(image_path).convert('RGB')
+        # img = img[:, :, ::-1] # BGR to RGB!!!
 
-        ori_height, ori_width, _ = img.shape
+        # ori_height, ori_width, _ = img.shape
+        ori_width, ori_height = img.size
 
         img_resized_list = []
         for this_short_size in self.imgSize:
@@ -277,14 +282,15 @@ class TestDataset(torchdata.Dataset):
             target_width = round2nearest_multiple(target_width, self.padding_constant)
 
             # resize
-            img_resized = cv2.resize(img.copy(), (target_width, target_height))
+            # img_resized = cv2.resize(img.copy(), (target_width, target_height))
+            img_resized = img.resize((target_width, target_height))
 
             # image to float
-            img_resized = img_resized.astype(np.float32)
-            img_resized = img_resized.transpose((2, 0, 1))
-            img_resized = self.img_transform(torch.from_numpy(img_resized))
+            # img_resized = img_resized.astype(np.float32)
+            # img_resized = img_resized.transpose((2, 0, 1))
+            img_resized = self.img_transform(img_resized).unsqueeze(0)
 
-            img_resized = torch.unsqueeze(img_resized, 0)
+            # img_resized = torch.unsqueeze(img_resized, 0)
             img_resized_list.append(img_resized)
 
         # segm = torch.from_numpy(segm.astype(np.int)).long()
