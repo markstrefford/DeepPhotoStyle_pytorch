@@ -284,6 +284,7 @@ class TestDataset(torchdata.Dataset):
             # resize
             # img_resized = cv2.resize(img.copy(), (target_width, target_height))
             img_resized = img.resize((target_width, target_height))
+            print('TestDataSet().__getitem__(): img_resized.size={}'.format(img_resized.size))
 
             # image to float
             # img_resized = img_resized.astype(np.float32)
