@@ -265,6 +265,7 @@ class TestDataset(torchdata.Dataset):
         # load image and label
         image_path = this_record['fpath_img']
         img = Image.open(image_path).convert('RGB')
+        print('img={}, size={}'.format(image_path, img.size))
         # img = img[:, :, ::-1] # BGR to RGB!!!
 
         # ori_height, ori_width, _ = img.shape
